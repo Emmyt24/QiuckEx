@@ -23,13 +23,27 @@ npm install
 Run migrations.
 
 ```bash
-npm run migration:run
+pnpm run db:verify-migrations
 ```
 
-or
-
+Verify migrations forward and rollback:
 ```bash
-npx prisma migrate dev
+pnpm run db:verify-migrations
+```
+
+Run mutation testing for financial authorization:
+```bash
+pnpm run test:mutation
+```
+
+Run Horizon performance regression tests:
+```bash
+pnpm run test:perf:horizon
+```
+
+Run cross-package generated type checks:
+```bash
+pnpm run check:generated-types
 ```
 
 Start development.

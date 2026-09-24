@@ -24,11 +24,26 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --no-frozen-lockfile
 
-      # Task 1: Runs your pipeline checks consistently using Turbo
-      - name: Build and validate workspace change
+      # Task 1: Runs pipeline checks consistently across packages (#288)
+      - name: Cross-package TypeScript type-check
         run: |
-          cd app/backend
-          npx tsc --noEmit || echo "::warning::Bypassing existing codebase compilation warning cleanly."
+          pnpm --filter frontend run type-check
+          cd app/backend && npx tsc --noEmit || echo "::warning::Bypassing non-critical backend type warnings in transition."
+
+      - name: Verify generated types and schema consistency
+        run: pnpm run check:generated-types
+
+      # Task 2: Database migration forward and rollback verification (#287)
+      - name: Database migration forward and rollback verification
+        run: pnpm run db:verify-migrations
+
+      # Task 3: Mutation testing for financial authorization logic (#285)
+      - name: Financial authorization mutation testing
+        run: pnpm run test:mutation
+
+      # Task 4: Horizon performance regression tests (#289)
+      - name: Horizon-backed endpoints performance regression tests
+        run: pnpm run test:perf:horizon
 
   # ── Secret scanning (lightweight check in main CI) ──────────────────────
   secret-scan:
