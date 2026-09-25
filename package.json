@@ -8,6 +8,8 @@
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "test": "turbo run test",
+    "governance:check": "node scripts/governance/check.mjs",
+    "governance:test": "node --test scripts/governance/__tests__/governance.test.mjs",
     "secret-scan": "bash scripts/secret-scan.sh",
     "secret-scan:verify": "bash scripts/secret-scan.sh --verify",
     "secret-scan:full": "bash scripts/secret-scan.sh --full"
