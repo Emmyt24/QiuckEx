@@ -169,6 +169,104 @@ curl -X POST "http://localhost:3000/username/toggle-public" \
 
 ---
 
+### 4. Rename Username (with redirect preservation)
+
+**POST** `/username/rename`
+
+Rename a username while preserving existing payment links. The previous
+username is retained as a permanent redirect alias so that any payment link
+or QR code that already references the old username continues to resolve to
+the same Stellar public key. Self-custody is preserved: the rename only
+affects the username-to-publicKey mapping, never the key itself.
+
+#### Request Body
+
+```json
+{
+  "currentUsername": "alice",
+  "newUsername": "alice-co",
+  "publicKey": "GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR",
+  "idempotencyKey": "3f9c1e2a-7b4d-4c8e-9f01-2a3b4c5d6e7f"
+}
+```
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `currentUsername` | string | ✅ Yes | Username being renamed (normalized, lowercase) |
+| `newUsername` | string | ✅ Yes | Desired new username (normalized, lowercase) |
+| `publicKey` | string | ✅ Yes | Owner's Stellar public key (must match current owner) |
+| `idempotencyKey` | string (UUID) | ✅ Yes | Client-generated key; replays return the original result |
+
+#### Example Request
+
+```bash
+curl -X POST "http://localhost:3000/username/rename" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "currentUsername": "alice",
+    "newUsername": "alice-co",
+    "publicKey": "GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR",
+    "idempotencyKey": "3f9c1e2a-7b4d-4c8e-9f01-2a3b4c5d6e7f"
+  }'
+```
+
+#### Example Response (Success)
+
+```json
+{
+  "ok": true,
+  "username": "alice-co",
+  "redirectFrom": "alice",
+  "publicKey": "GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR",
+  "renamedAt": "2025-03-27T12:05:00Z"
+}
+```
+
+#### Status Codes
+
+- `200 OK` - Rename applied (or idempotent replay of a prior success)
+- `400 Bad Request` - Malformed username or missing idempotency key
+- `401 Unauthorized` - Missing or invalid signature over the rename payload
+- `403 Forbidden` - `publicKey` does not own `currentUsername`
+- `404 Not Found` - `currentUsername` does not exist
+- `409 Conflict` - `newUsername` already taken, or `currentUsername` is a reserved redirect alias
+- `410 Gone` - Redirect alias expired (only when a non-permanent alias policy is configured)
+- `503 Service Unavailable` - Dependency (DB/registry) unavailable; safe to retry with the same idempotency key
+
+#### Redirect Semantics
+
+- The old username becomes a **permanent redirect alias** to the new username.
+- Payment links, QR codes, and share URLs that embed the old username keep
+  resolving to the same `publicKey`; no funds are ever routed to a new key.
+- Redirects are resolved server-side before any payment intent is created, so
+  the financial invariant "username → publicKey is stable for the lifetime of
+  a payment link" is preserved.
+- A username that is currently a redirect alias cannot be re-registered by a
+  different wallet (`409 Conflict`).
+
+#### Idempotency & Rollback
+
+- Every rename requires an `idempotencyKey`. Replaying the same key returns
+  the original `200 OK` response without re-applying the change.
+- Renames are applied atomically: the new mapping and the redirect alias are
+  written in a single transaction. On dependency failure the transaction is
+  rolled back and the old username remains fully active.
+- If the new username write succeeds but the alias write fails, the whole
+  transaction is rolled back — there is never a window where the old link
+  stops resolving.
+
+#### Observability
+
+- Structured log fields: `event=username.rename`, `currentUsername`,
+  `newUsername`, `publicKey` (hashed), `idempotencyKey`, `outcome`,
+  `latencyMs`. No secrets or raw keys are logged.
+- Metrics: `username_rename_total{outcome}`, `username_rename_latency_ms`,
+  `username_redirect_resolve_total{hit|miss}`.
+
+---
+
 ## Field Descriptions
 
 ### PublicProfile Object
@@ -208,6 +306,13 @@ curl -X POST "http://localhost:3000/username/toggle-public" \
 - Changes take effect immediately
 - Hidden profiles won't appear in search or trending
 
+### Rename & Redirects
+- Renames preserve all existing payment links via permanent redirect aliases.
+- Redirect aliases resolve to the same `publicKey`; they never change custody.
+- Aliases are excluded from search and trending results.
+- Renames are feature-gated: disabled on mainnet until the redirect registry
+  migration is complete (see `docs/CAPABILITY-MAP.md`).
+
 ---
 
 ## Rate Limits
@@ -235,6 +340,14 @@ All endpoints are subject to rate limiting:
 {
   "code": "USERNAME_NOT_FOUND",
   "message": "Username not found or does not belong to this wallet"
+}
+```
+
+### 409 Conflict
+```json
+{
+  "code": "USERNAME_ALREADY_TAKEN",
+  "message": "New username is already registered or reserved as a redirect alias"
 }
 ```
 
@@ -296,6 +409,19 @@ async function togglePublicProfile(username, publicKey, isPublic) {
   );
   return await response.json();
 }
+
+// Rename username (preserves existing payment links via redirect alias)
+async function renameUsername(currentUsername, newUsername, publicKey, idempotencyKey) {
+  const response = await fetch(
+    'http://localhost:3000/username/rename',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentUsername, newUsername, publicKey, idempotencyKey }),
+    }
+  );
+  return await response.json();
+}
 ```
 
 ### Python
@@ -325,6 +451,18 @@ def toggle_public_profile(username, public_key, is_public):
         json={"username": username, "publicKey": public_key, "isPublic": is_public}
     )
     return response.json()
+
+def rename_username(current_username, new_username, public_key, idempotency_key):
+    response = requests.post(
+        f"{BASE_URL}/username/rename",
+        json={
+            "currentUsername": current_username,
+            "newUsername": new_username,
+            "publicKey": public_key,
+            "idempotencyKey": idempotency_key,
+        },
+    )
+    return response.json()
 ```
 
 ### cURL Examples
@@ -345,9 +483,9 @@ curl -X POST "http://localhost:3000/username/toggle-public" \
 curl -X POST "http://localhost:3000/username/toggle-public" \
   -H "Content-Type: application/json" \
   -d '{"username":"alice","publicKey":"GBXG...","isPublic":false}'
+
+# Rename username (old link keeps resolving via redirect alias)
+curl -X POST "http://localhost:3000/username/rename" \
+  -H "Content-Type: application/json" \
+  -d '{"currentUsername":"alice","newUsername":"alice-co","publicKey":"GBXG...","idempotencyKey":"3f9c1e2a-7b4d-4c8e-9f01-2a3b4c5d6e7f"}'
 ```
-
----
-
-**Last Updated:** March 27, 2025  
-**Version:** 1.0.0
