@@ -8,6 +8,8 @@
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "test": "turbo run test",
+    "labels:sync": "bash scripts/sync-labels.sh",
+    "labels:check": "bash scripts/sync-labels.sh --check",
     "secret-scan": "bash scripts/secret-scan.sh",
     "secret-scan:verify": "bash scripts/secret-scan.sh --verify",
     "secret-scan:full": "bash scripts/secret-scan.sh --full"
