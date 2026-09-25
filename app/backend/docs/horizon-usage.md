@@ -31,6 +31,50 @@ Results are cached for **60 seconds** in memory using an LRU cache. The cache ke
 
 If Horizon returns a `429 Too Many Requests` error, the backend will return a `503 Service Unavailable` response. Clients should implement their own backoff strategy and avoid aggressive polling.
 
+## Transaction Simulation Hardening (Issue #214)
+
+Transaction simulation must be validated against the **active network** and the **expected asset registry** before any result is trusted. Mismatches are rejected with stable error codes so callers can branch deterministically.
+
+### Network matching
+
+- The requested network (e.g. `PUBLIC`, `TESTNET`, `FUTURENET`) MUST equal the configured/active network for the running deployment.
+- A mismatch returns `SIM_NETWORK_MISMATCH` and the simulation is not executed.
+- Mainnet-only behavior is feature-gated: when the active network is not `PUBLIC`, mainnet-gated simulation paths return `SIM_FEATURE_GATED` instead of silently degrading.
+
+### Asset matching
+
+- Asset identifiers are compared against the expected asset registry using the canonical form:
+  - Native: `XLM`
+  - Issued: `CODE:ISSUER` (issuer validated with `StrKey.isValidEd25519PublicKey`)
+  - Contract/SAC: `C...` contract address
+- A mismatch (wrong issuer, wrong code, wrong SAC address, or unknown asset) returns `SIM_ASSET_MISMATCH`.
+- Malformed asset identifiers return `SIM_ASSET_MALFORMED`.
+
+### Stable error codes
+
+| Code | Meaning |
+| :--- | :--- |
+| `SIM_NETWORK_MISMATCH` | Requested network does not match the active network. |
+| `SIM_ASSET_MISMATCH` | Asset does not match the expected registry entry. |
+| `SIM_ASSET_MALFORMED` | Asset identifier is malformed or unparseable. |
+| `SIM_UNAUTHORIZED` | Caller is not authorized to simulate for the requested account. |
+| `SIM_DUPLICATE` | Duplicate simulation request (idempotency key already seen). |
+| `SIM_EXPIRED` | Simulation request or referenced ledger window has expired. |
+| `SIM_DEPENDENCY_FAILURE` | Horizon or another upstream dependency failed. |
+| `SIM_FEATURE_GATED` | Requested behavior is not enabled on the active network. |
+
+### Idempotency, expiry, and degraded mode
+
+- Simulation requests carry an idempotency key; replays return the original result or `SIM_DUPLICATE`.
+- Requests older than the configured simulation TTL return `SIM_EXPIRED`.
+- When Horizon is unavailable, simulation returns `SIM_DEPENDENCY_FAILURE` (mapped from upstream `503`) rather than a partial result.
+
+### Observability
+
+- Structured logs record `network`, `asset`, `errorCode`, and `latencyMs` for each simulation.
+- Metrics track success rate, latency, and failure counts by `errorCode`.
+- Logs MUST NOT include secrets, private keys, or unnecessary personal data.
+
 ## Example Usage
 
 ```typescript
@@ -48,3 +92,4 @@ const transactions = await this.horizonService.getPayments(
 1.  **Always use the operations endpoint** for payment data.
 2.  **Use pagination** instead of high limits to avoid long response times.
 3.  **Validate account IDs** using `StrKey.isValidEd25519PublicKey`.
+4.  **Validate network and asset identifiers** before trusting any simulation result (see above).
