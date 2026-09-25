@@ -7,6 +7,7 @@ Companion docs:
 - [BACKEND-CLIENT-CONTRACT-MAP.md](./BACKEND-CLIENT-CONTRACT-MAP.md) — endpoint-level wiring between clients and backend (mismatch numbers referenced below, e.g. "mismatch #1", come from that doc).
 - [MVP-CONTRACT-SCOPE.md](./MVP-CONTRACT-SCOPE.md) — what is deliberately on-chain vs deferred.
 - [RUNTIME-CONFIG-MATRIX.md](./RUNTIME-CONFIG-MATRIX.md) — environment/config drift that affects whether "Live" flows actually work in your environment.
+- [STAGING-PREVIEWS.md](./STAGING-PREVIEWS.md) — isolated contributor preview environments: reproducible scope ids, TTL expiry, stable error codes, and the testnet-only gate.
 
 ## Status legend
 
@@ -73,6 +74,8 @@ NestJS app, ~38 modules wired in `src/app.module.ts`. Supabase (40 migrations) a
 | Refunds, job queue, health, metrics | `src/refunds`, `src/job-queue`, `src/health`, `src/metrics` | **Live** | Mainnet refund initiation gated by `mainnet.refunds` flag (disabled by default). |
 | Session bootstrap (`GET /session/bootstrap`) | — (no module) | **Partial** | Mobile client is wired; backend route does not exist (mismatch #2). |
 | Feedback intake (`POST /feedback`) | — (no module) | **Partial** | Mobile client is wired with export fallback; backend route does not exist (mismatch #3). |
+| Preview scopes (isolated data partition, TTL expiry) | `src/preview-scope` | **Partial** | Scope creation, validity, extension, and the daily expiry cron are real and TTL-bounded. Reproducible scope-id derivation (`buildPreviewManifest`, `buildPreviewScopeId`) and stable error codes are implemented and unit-tested. **Not yet reachable over HTTP**: there is no `preview-scope` controller, so previews are provisioned by CI only (`.github/workflows/staging-preview.yml`) and not by an API call. Enforced on reads via `PreviewScopeGuard` + the `x-preview-scope` header. |
+| Branch previews (URL registry, inactivity/max-age expiry) | `src/branch-preview` | **Partial** | CRUD, ETag caching, and the auto-expiry worker are implemented. Previews are **testnet-only**: `buildPreviewManifest` refuses `mainnet` because the Soroban contract has no mainnet deployment. |
 
 ## Mobile (`app/mobile`)
 
