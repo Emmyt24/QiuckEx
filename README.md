@@ -152,6 +152,14 @@ Run tests to validate code quality and functionality:
    cd app/mobile && npm test
    ```
 
+4. Validate a release candidate with one command — the same gate CI runs:
+   ```bash
+   pnpm rc:validate          # full gate
+   pnpm rc:validate:quick    # fast subset while iterating
+   pnpm rc:stages            # list the stages
+   ```
+   See [docs/RELEASE-CANDIDATE-VALIDATION.md](docs/RELEASE-CANDIDATE-VALIDATION.md).
+
 ### Deployment
 Deployment is automated for most components, but requires platform-specific configuration:
 
@@ -172,6 +180,8 @@ Deployment is automated for most components, but requires platform-specific conf
    - For mainnet: Update network config and deploy similarly, ensuring WASM optimization.
 
 For production readiness, always verify `NEXT_PUBLIC_STELLAR_NETWORK=mainnet` and conduct thorough testing. See [DEPLOYMENT.md](DEPLOYMENT.md) for advanced configurations like CI/CD pipelines.
+
+Automated release-gate checks live in [`scripts/rc-validate.sh`](scripts/rc-validate.sh) — run it before promoting, and see [docs/RELEASE-CANDIDATE-VALIDATION.md](docs/RELEASE-CANDIDATE-VALIDATION.md) for the stage list and exit-code contract. Promotion itself follows [RELEASE_PROMOTION_FLOW.md](RELEASE_PROMOTION_FLOW.md).
 
 ## Usage
 1. **Claim Username**: Connect your wallet in the app, select a name, and confirm the on-chain transaction.

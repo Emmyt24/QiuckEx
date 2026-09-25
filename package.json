@@ -8,6 +8,9 @@
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "test": "turbo run test",
+    "rc:validate": "bash scripts/rc-validate.sh",
+    "rc:validate:quick": "bash scripts/rc-validate.sh --quick",
+    "rc:stages": "bash scripts/rc-validate.sh --list",
     "secret-scan": "bash scripts/secret-scan.sh",
     "secret-scan:verify": "bash scripts/secret-scan.sh --verify",
     "secret-scan:full": "bash scripts/secret-scan.sh --full"

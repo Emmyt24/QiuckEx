@@ -60,11 +60,13 @@ If you prefer to set up the environment manually on your host machine:
 
 ## Pull Request Guidelines
 
-- Reference the issue number in your PR description.
+- Reference the issue number in your PR description (`closes #123`).
 - Add clear, descriptive titles.
-- Ensure all tests pass before requesting review.
+- Ensure all tests pass before requesting review. The fastest way to know is `./scripts/rc-validate.sh` — the same gate CI runs. See [docs/RELEASE-CANDIDATE-VALIDATION.md](docs/RELEASE-CANDIDATE-VALIDATION.md).
 - Follow the [Conventional Commits](https://www.conventionalcommits.org/) style.
 - Add/Update documentation as needed.
+- If your change alters what is actually shipped, update the matching row in [docs/CAPABILITY-MAP.md](docs/CAPABILITY-MAP.md) in the same PR ([ADR 0004](docs/adr/0004-canonical-status-vocabulary.md)).
+- If your change touches settlement, key handling, or fees, label it `custody:sensitive` ([ADR 0001](docs/adr/0001-self-custody-no-intermediary-custody.md)).
 
 ## 8-Week MVP Roadmap & Feature Prioritization
 
