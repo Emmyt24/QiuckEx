@@ -89,7 +89,10 @@ Expo/React Native app, 25 screens in `app/mobile/app`. ⚠️ All "Live" rows ar
 | In-app feedback | `services/feedback.ts`, `app/feedback.tsx` | **Partial** | No backend route; every submit silently degrades to the export path (mismatch #3). |
 | Offline action queue | `services/offline-queue.ts` | **Partial** | Queue machinery is real; the built-in `mock-success`/`mock-failure`/`mock-payment` handlers are dev-only **Mocked** actions. |
 | Contacts, security center, wallet session, local data | `services/contacts.ts`, `services/security*.ts`, `services/wallet-session.ts` | **Live** | Deliberately device-local (AsyncStorage/SecureStore); no backend sync by design. |
-| Share receipt | `src/screens/ReceiptScreen.tsx` | **Live** | Builds a *web* share URL; does not consume the backend `GET /v1/receipts/*` API (which has no client consumer yet). |
+| Share & native receipt verification | `services/receipts.ts`, `src/screens/ReceiptScreen.tsx` → backend `receipts` | **Live** | Consumes backend `POST /v1/receipts/verify-hash` and `GET /v1/receipts/*` with degraded offline fallback (#270). |
+| Mobile deep-link validation & phishing defense | `utils/deep-link-routing.ts`, `utils/parse-payment-link.ts` | **Live** | Phishing-resistant link resolution, homoglyph defense, expiration checking, and replay protection (#271). |
+| Core screens accessibility automation | `app/payment-confirmation.tsx`, `app/wallet-connect.tsx`, `app/quick-receive.tsx`, `.maestro/core-accessibility.yml` | **Live** | Accessibility roles/labels/hints and automated Jest/Maestro coverage for core flows (#272). |
+| Release-build network and environment parity | `services/environment-parity.ts`, `app.config.ts`, `eas.json` | **Live** | iOS and Android release configuration parity with backend `api/environment-parity` validation (#273). |
 | Debug screens (deep-link, notification, offline-queue inspector, QA checklist) | `app/*-debug.tsx`, `app/qa-smoke-checklist.tsx` | **Experimental** | Developer tooling; hidden in production+mainnet builds. |
 
 ## Contract (`app/contract`)

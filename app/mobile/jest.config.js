@@ -6,5 +6,6 @@ module.exports = {
         'react-native-safe-area-context': require.resolve(
             './__mocks__/react-native-safe-area-context.js'
         ),
+        '^@react-native/assets-registry/(.*)$': '<rootDir>/__mocks__/assets-registry.js',
     },
 };

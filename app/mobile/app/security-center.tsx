@@ -135,6 +135,8 @@ export default function SecurityCenterScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [sessions, setSessions] = useState<ActiveSession[]>(MOCK_SESSIONS);
 
+  useEffect(() => {
+    async function loadSecurityItems() {
       const items: SecurityCheckItem[] = [];
 
       if (isBiometricAvailable) {
@@ -183,8 +185,6 @@ export default function SecurityCenterScreen() {
       }
 
       const session = await getWalletSession();
-      setWalletSession(session);
-      setSessionExplanation(await getSessionExpiryExplanation());
       if (session) {
         const isRestorable = isSessionRestorable(session);
         if (isRestorable) {
@@ -216,8 +216,8 @@ export default function SecurityCenterScreen() {
       }
 
       setSecurityItems(items);
-      setLoading(false);
-      setRefreshing(false);
+    }
+    void loadSecurityItems();
   }, [isBiometricAvailable, hasPinConfigured, settings]);
 
   const handleRevokeSession = (sessionId: string) => {

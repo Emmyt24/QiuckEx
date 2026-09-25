@@ -52,8 +52,8 @@ Auth conventions:
 | Notification center (`services/in-app-notifications.ts`) | `GET /notifications/in-app?publicKey`, `POST /notifications/in-app/:id/read`, `POST /notifications/in-app/read-all?publicKey` | `notifications` (`notifications.controller.ts`) | List + read-state; client tolerates both a plain array and a Supabase-style list envelope (defensive drift handling) |
 | Escrow confirmation (`app/payment-confirmation.tsx` → `hooks/useContractRegistry.ts` → `services/contract-registry.ts`) | ⚠️ `GET /api/contracts/registry` | `contracts` (`contract-registry.controller.ts`) | **BROKEN** — backend serves `GET /contracts/registry` (with ETag/304 support). The `/api` prefix 404s. See mismatch #1 |
 | Session bootstrap (`services/session-bootstrap.ts`) | ⚠️ `GET /session/bootstrap` (Bearer = publicKey) | — | **No backend route exists.** Planned/not wired |
-| In-app feedback (`services/feedback.ts`) | ⚠️ `POST /feedback` | — | **No backend controller.** Client intentionally degrades to an exportable payload on failure |
-| Share receipt (`src/screens/ReceiptScreen.tsx`, `hooks/useShareReceipt.ts`) | `${baseUrl}/tx/:receiptHash` | — | A **web** share URL, not an API call. Note the actual receipts API is `GET /v1/receipts/tx/:txHash` — don't confuse the two |
+| Share & verify receipt (`src/screens/ReceiptScreen.tsx`, `services/receipts.ts`) | `POST /v1/receipts/verify-hash`, `GET /v1/receipts/tx/:txHash` | `receipts` | Verifies deterministic receipt hashes against the backend receipts API, supporting offline degraded validation and web explorer share links. |
+| Environment parity validation (`services/environment-parity.ts`) | `GET /api/environment-parity/status`, `GET /api/environment-parity/health` | `environment-parity` | Validates mobile release configuration and network parity against the backend. |
 
 ## Known mismatches & payload drift
 
@@ -83,7 +83,7 @@ Useful when picking issues — these are "wire the client" opportunities, not ne
 |---|---|---|
 | `GET /username/search`, `/trending`, `/recently-active`, `/featured`, `POST /username/toggle-public` | `usernames` | `app/backend/docs/API-REFERENCE-PUBLIC-PROFILES.md` |
 | `links/recurring/*` | `links` (`recurring-payments.controller.ts`) | `app/backend/docs/RECURRING-PAYMENTS.md` |
-| `GET /v1/receipts/tx/:txHash`, `GET /v1/receipts/address/:address` | `receipts` | — (mobile ReceiptScreen builds a web URL instead) |
+| `GET /v1/receipts/address/:address` | `receipts` | (Address-level listing; single tx verified via `services/receipts.ts`) |
 | `GET /payments/recent` | `payments` | — |
 | `POST /stellar/quote`, `GET /stellar/quote/:quoteId`, `POST /stellar/path-preview/strict-send` | `stellar` | — |
 | `GET /analytics/time-series`, `GET /analytics/assets` | `analytics` | `app/backend/docs/ANALYTICS-API.md` (frontend uses only `report`/`export`) |
