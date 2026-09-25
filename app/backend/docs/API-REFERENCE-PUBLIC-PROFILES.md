@@ -267,6 +267,222 @@ curl -X POST "http://localhost:3000/username/rename" \
 
 ---
 
+### 5. Report a Public Profile (Abuse Reporting)
+
+**POST** `/username/report`
+
+Submit an abuse report against a public profile. Reports are accepted only
+from authenticated reporters and are recorded for moderator review. Reporting
+never mutates the target profile or its `username → publicKey` mapping, so
+self-custody and the financial invariants are preserved.
+
+#### Request Body
+
+```json
+{
+  "username": "alice",
+  "category": "impersonation",
+  "details": "Profile is impersonating a known creator.",
+  "idempotencyKey": "9b2d4f6a-1c3e-4a5b-8d7f-0e1f2a3b4c5d"
+}
+```
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `username` | string | ✅ Yes | Target profile username (normalized, lowercase) |
+| `category` | string | ✅ Yes | One of `spam`, `impersonation`, `fraud`, `harassment`, `other` |
+| `details` | string | ❌ No | Free-text details (max 2000 chars) |
+| `idempotencyKey` | string (UUID) | ✅ Yes | Client-generated key; replays return the original result |
+
+#### Example Request
+
+```bash
+curl -X POST "http://localhost:3000/username/report" \
+  -H "Authorization: Bearer <reporter-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "alice",
+    "category": "impersonation",
+    "details": "Profile is impersonating a known creator.",
+    "idempotencyKey": "9b2d4f6a-1c3e-4a5b-8d7f-0e1f2a3b4c5d"
+  }'
+```
+
+#### Example Response (Success)
+
+```json
+{
+  "ok": true,
+  "reportId": "c1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b",
+  "status": "open",
+  "createdAt": "2025-03-27T12:10:00Z"
+}
+```
+
+#### Status Codes
+
+- `201 Created` - Report recorded (or idempotent replay of a prior success)
+- `400 Bad Request` - Malformed payload, unknown `category`, or missing idempotency key
+- `401 Unauthorized` - Missing or invalid reporter authentication
+- `404 Not Found` - Target `username` does not exist
+- `409 Conflict` - Duplicate report for the same target by the same reporter within the dedupe window
+- `410 Gone` - Target profile no longer exists (deleted after lookup)
+- `503 Service Unavailable` - Dependency (DB/moderation queue) unavailable; safe to retry with the same idempotency key
+
+#### Idempotency & Deduplication
+
+- Every report requires an `idempotencyKey`. Replaying the same key returns
+  the original `201 Created` response without creating a second report.
+- A reporter may not file more than one open report against the same target
+  within the dedupe window; the second attempt returns `409 Conflict` with the
+  existing `reportId`.
+- Reports are written in a single transaction. On dependency failure the
+  transaction is rolled back and no partial report is persisted.
+
+#### Observability
+
+- Structured log fields: `event=profile.report`, `reportId`, `username`,
+  `category`, `reporterId` (hashed), `idempotencyKey`, `outcome`, `latencyMs`.
+  Reporter identity and free-text details are never logged in raw form.
+- Metrics: `profile_report_total{category,outcome}`,
+  `profile_report_latency_ms`, `profile_report_dedupe_total{hit|miss}`.
+
+---
+
+### 6. List Abuse Reports (Moderation)
+
+**GET** `/username/reports`
+
+List abuse reports for moderator review. Requires a moderator or admin role.
+
+#### Parameters
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `status` | string | ❌ No | `open` | Filter: `open`, `resolved`, `dismissed` |
+| `limit` | number | ❌ No | 20 | Max results (1-100) |
+| `cursor` | string | ❌ No | - | Opaque pagination cursor |
+
+#### Example Request
+
+```bash
+curl "http://localhost:3000/username/reports?status=open&limit=20" \
+  -H "Authorization: Bearer <moderator-token>"
+```
+
+#### Example Response
+
+```json
+{
+  "reports": [
+    {
+      "reportId": "c1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b",
+      "username": "alice",
+      "category": "impersonation",
+      "status": "open",
+      "createdAt": "2025-03-27T12:10:00Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+#### Status Codes
+
+- `200 OK` - Success
+- `400 Bad Request` - Invalid `status` filter or pagination cursor
+- `401 Unauthorized` - Missing or invalid authentication
+- `403 Forbidden` - Authenticated principal lacks moderator/admin role
+- `503 Service Unavailable` - Dependency (DB) unavailable; safe to retry
+
+---
+
+### 7. Resolve or Dismiss an Abuse Report (Moderation)
+
+**POST** `/username/reports/{reportId}/resolve`
+
+Apply a moderation decision to an open report. Requires a moderator or admin
+role. State transitions are one-way: `open → resolved` or `open → dismissed`.
+A report that is already `resolved` or `dismissed` cannot be transitioned
+again.
+
+#### Request Body
+
+```json
+{
+  "decision": "resolved",
+  "note": "Confirmed impersonation; profile hidden.",
+  "idempotencyKey": "7e6d5c4b-3a2f-4e1d-9c8b-7a6f5e4d3c2b"
+}
+```
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `decision` | string | ✅ Yes | One of `resolved`, `dismissed` |
+| `note` | string | ❌ No | Moderator note (max 2000 chars) |
+| `idempotencyKey` | string (UUID) | ✅ Yes | Client-generated key; replays return the original result |
+
+#### Example Request
+
+```bash
+curl -X POST "http://localhost:3000/username/reports/c1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b/resolve" \
+  -H "Authorization: Bearer <moderator-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "decision": "resolved",
+    "note": "Confirmed impersonation; profile hidden.",
+    "idempotencyKey": "7e6d5c4b-3a2f-4e1d-9c8b-7a6f5e4d3c2b"
+  }'
+```
+
+#### Example Response (Success)
+
+```json
+{
+  "ok": true,
+  "reportId": "c1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b",
+  "status": "resolved",
+  "resolvedAt": "2025-03-27T12:20:00Z"
+}
+```
+
+#### Status Codes
+
+- `200 OK` - Decision applied (or idempotent replay of a prior success)
+- `400 Bad Request` - Malformed payload, unknown `decision`, or missing idempotency key
+- `401 Unauthorized` - Missing or invalid authentication
+- `403 Forbidden` - Authenticated principal lacks moderator/admin role
+- `404 Not Found` - `reportId` does not exist
+- `409 Conflict` - Report is not in `open` state (already resolved or dismissed)
+- `503 Service Unavailable` - Dependency (DB) unavailable; safe to retry with the same idempotency key
+
+#### State Transitions
+
+- `open → resolved` (decision `resolved`)
+- `open → dismissed` (decision `dismissed`)
+- Any other transition returns `409 Conflict`; terminal states are immutable.
+
+#### Idempotency & Rollback
+
+- Every decision requires an `idempotencyKey`. Replaying the same key returns
+  the original `200 OK` response without re-applying the transition.
+- The status update and the moderation audit record are written in a single
+  transaction. On dependency failure the transaction is rolled back and the
+  report remains `open`.
+
+#### Observability
+
+- Structured log fields: `event=profile.report.resolve`, `reportId`,
+  `decision`, `moderatorId` (hashed), `idempotencyKey`, `outcome`, `latencyMs`.
+- Metrics: `profile_report_resolve_total{decision,outcome}`,
+  `profile_report_resolve_latency_ms`.
+
+---
+
 ## Field Descriptions
 
 ### PublicProfile Object
@@ -279,213 +495,16 @@ curl -X POST "http://localhost:3000/username/rename" \
 | `similarityScore` | number | Search relevance (0-100), only in search results |
 | `transactionVolume` | number | Total USD volume, only in trending results |
 | `transactionCount` | number | Number of transactions, only in trending results |
-| `lastActiveAt` | ISO 8601 datetime | Last activity timestamp |
-| `createdAt` | ISO 8601 datetime | Registration timestamp |
+| `lastActiveAt` | string (ISO 8601) | Last activity timestamp |
+| `createdAt` | string (ISO 8601) | Profile creation timestamp |
 
----
+### AbuseReport Object
 
-## Usage Notes
-
-### Search Tips
-- Minimum 2 characters required
-- Case-insensitive (automatically normalized)
-- Supports partial matches and typos
-- Results ranked by similarity score
-- Only includes profiles with `is_public=true`
-
-### Trending Algorithm
-- Based on actual payment transaction volume
-- Counts both sender and receiver activity
-- Volume measured in USD
-- Only public profiles appear in results
-- Real-time calculation (no caching)
-
-### Privacy Controls
-- Profiles are **private by default** (opt-in)
-- Only wallet owners can toggle visibility
-- Changes take effect immediately
-- Hidden profiles won't appear in search or trending
-
-### Rename & Redirects
-- Renames preserve all existing payment links via permanent redirect aliases.
-- Redirect aliases resolve to the same `publicKey`; they never change custody.
-- Aliases are excluded from search and trending results.
-- Renames are feature-gated: disabled on mainnet until the redirect registry
-  migration is complete (see `docs/CAPABILITY-MAP.md`).
-
----
-
-## Rate Limits
-
-All endpoints are subject to rate limiting:
-- Default: 10 requests/minute
-- With API key: Higher limits apply
-- Exceeding limits returns `429 Too Many Requests`
-
----
-
-## Error Responses
-
-### 400 Bad Request
-```json
-{
-  "code": "USERNAME_INVALID_FORMAT",
-  "message": "Search query must be at least 2 characters",
-  "field": "query"
-}
-```
-
-### 404 Not Found
-```json
-{
-  "code": "USERNAME_NOT_FOUND",
-  "message": "Username not found or does not belong to this wallet"
-}
-```
-
-### 409 Conflict
-```json
-{
-  "code": "USERNAME_ALREADY_TAKEN",
-  "message": "New username is already registered or reserved as a redirect alias"
-}
-```
-
-### 429 Too Many Requests
-```json
-{
-  "statusCode": 429,
-  "error": "Too Many Requests",
-  "message": "Rate limit exceeded"
-}
-```
-
----
-
-## Swagger Documentation
-
-Interactive API documentation available at:
-```
-http://localhost:3000/api#/usernames
-```
-
-Features:
-- Try it out directly in browser
-- See all request/response schemas
-- Download OpenAPI spec
-
----
-
-## Code Examples
-
-### JavaScript/Node.js
-
-```javascript
-// Search for profiles
-async function searchProfiles(query, limit = 10) {
-  const response = await fetch(
-    `http://localhost:3000/username/search?query=${query}&limit=${limit}`
-  );
-  return await response.json();
-}
-
-// Get trending creators
-async function getTrendingCreators(timeWindowHours = 24, limit = 10) {
-  const response = await fetch(
-    `http://localhost:3000/username/trending?timeWindowHours=${timeWindowHours}&limit=${limit}`
-  );
-  return await response.json();
-}
-
-// Toggle public profile
-async function togglePublicProfile(username, publicKey, isPublic) {
-  const response = await fetch(
-    'http://localhost:3000/username/toggle-public',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, publicKey, isPublic }),
-    }
-  );
-  return await response.json();
-}
-
-// Rename username (preserves existing payment links via redirect alias)
-async function renameUsername(currentUsername, newUsername, publicKey, idempotencyKey) {
-  const response = await fetch(
-    'http://localhost:3000/username/rename',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ currentUsername, newUsername, publicKey, idempotencyKey }),
-    }
-  );
-  return await response.json();
-}
-```
-
-### Python
-
-```python
-import requests
-
-BASE_URL = "http://localhost:3000"
-
-def search_profiles(query, limit=10):
-    response = requests.get(
-        f"{BASE_URL}/username/search",
-        params={"query": query, "limit": limit}
-    )
-    return response.json()
-
-def get_trending_creators(time_window_hours=24, limit=10):
-    response = requests.get(
-        f"{BASE_URL}/username/trending",
-        params={"timeWindowHours": time_window_hours, "limit": limit}
-    )
-    return response.json()
-
-def toggle_public_profile(username, public_key, is_public):
-    response = requests.post(
-        f"{BASE_URL}/username/toggle-public",
-        json={"username": username, "publicKey": public_key, "isPublic": is_public}
-    )
-    return response.json()
-
-def rename_username(current_username, new_username, public_key, idempotency_key):
-    response = requests.post(
-        f"{BASE_URL}/username/rename",
-        json={
-            "currentUsername": current_username,
-            "newUsername": new_username,
-            "publicKey": public_key,
-            "idempotencyKey": idempotency_key,
-        },
-    )
-    return response.json()
-```
-
-### cURL Examples
-
-```bash
-# Search
-curl "http://localhost:3000/username/search?query=alice&limit=5"
-
-# Trending (last 7 days)
-curl "http://localhost:3000/username/trending?timeWindowHours=168&limit=20"
-
-# Enable public profile
-curl -X POST "http://localhost:3000/username/toggle-public" \
-  -H "Content-Type: application/json" \
-  -d '{"username":"alice","publicKey":"GBXG...","isPublic":true}'
-
-# Disable public profile
-curl -X POST "http://localhost:3000/username/toggle-public" \
-  -H "Content-Type: application/json" \
-  -d '{"username":"alice","publicKey":"GBXG...","isPublic":false}'
-
-# Rename username (old link keeps resolving via redirect alias)
-curl -X POST "http://localhost:3000/username/rename" \
-  -H "Content-Type: application/json" \
-  -d '{"currentUsername":"alice","newUsername":"alice-co","publicKey":"GBXG...","idempotencyKey":"3f9c1e2a-7b4d-4c8e-9f01-2a3b4c5d6e7f"}'
-```
+| Field | Type | Description |
+|-------|------|-------------|
+| `reportId` | UUID | Unique report identifier |
+| `username` | string | Reported profile username |
+| `category` | string | `spam`, `impersonation`, `fraud`, `harassment`, or `other` |
+| `status` | string | `open`, `resolved`, or `dismissed` |
+| `createdAt` | string (ISO 8601) | Report creation timestamp |
+| `resolvedAt` | string (ISO 8601) | Decision timestamp, present once terminal |
