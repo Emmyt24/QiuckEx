@@ -283,7 +283,7 @@ self-custody and the financial invariants are preserved.
   "username": "alice",
   "category": "impersonation",
   "details": "Profile is impersonating a known creator.",
-  "idempotencyKey": "9b2d4f6a-1c3e-4a5b-8d7f-0e1f2a3b4c5d"
+  "idempotencyKey": "9b1c2d3e-4f5a-6b7c-8d9e-0f1a2b3c4d5e"
 }
 ```
 
@@ -291,22 +291,22 @@ self-custody and the financial invariants are preserved.
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `username` | string | ✅ Yes | Target profile username (normalized, lowercase) |
-| `category` | string | ✅ Yes | One of `spam`, `impersonation`, `fraud`, `harassment`, `other` |
-| `details` | string | ❌ No | Free-text details (max 2000 chars) |
+| `username` | string | ✅ Yes | Reported profile username (normalized, lowercase) |
+| `category` | string | ✅ Yes | One of `impersonation`, `spam`, `fraud`, `harassment`, `other` |
+| `details` | string | ❌ No | Free-text context (max 2000 chars) |
 | `idempotencyKey` | string (UUID) | ✅ Yes | Client-generated key; replays return the original result |
 
 #### Example Request
 
 ```bash
 curl -X POST "http://localhost:3000/username/report" \
-  -H "Authorization: Bearer <reporter-token>" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <reporter-token>" \
   -d '{
     "username": "alice",
     "category": "impersonation",
     "details": "Profile is impersonating a known creator.",
-    "idempotencyKey": "9b2d4f6a-1c3e-4a5b-8d7f-0e1f2a3b4c5d"
+    "idempotencyKey": "9b1c2d3e-4f5a-6b7c-8d9e-0f1a2b3c4d5e"
   }'
 ```
 
@@ -315,106 +315,123 @@ curl -X POST "http://localhost:3000/username/report" \
 ```json
 {
   "ok": true,
-  "reportId": "c1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b",
-  "status": "open",
-  "createdAt": "2025-03-27T12:10:00Z"
+  "reportId": "c1a2b3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "received",
+  "reportedAt": "2025-03-27T12:10:00Z"
 }
 ```
 
 #### Status Codes
 
-- `201 Created` - Report recorded (or idempotent replay of a prior success)
-- `400 Bad Request` - Malformed payload, unknown `category`, or missing idempotency key
+- `200 OK` - Report recorded (or idempotent replay of a prior submission)
+- `400 Bad Request` - Malformed username, unknown category, or missing idempotency key
 - `401 Unauthorized` - Missing or invalid reporter authentication
-- `404 Not Found` - Target `username` does not exist
-- `409 Conflict` - Duplicate report for the same target by the same reporter within the dedupe window
-- `410 Gone` - Target profile no longer exists (deleted after lookup)
+- `404 Not Found` - Reported username does not exist
+- `409 Conflict` - Duplicate report for the same `(reporter, username, category)` within the dedupe window
+- `429 Too Many Requests` - Reporter exceeded the abuse-report rate limit
 - `503 Service Unavailable` - Dependency (DB/moderation queue) unavailable; safe to retry with the same idempotency key
 
-#### Idempotency & Deduplication
+#### Idempotency & Rollback
 
 - Every report requires an `idempotencyKey`. Replaying the same key returns
-  the original `201 Created` response without creating a second report.
-- A reporter may not file more than one open report against the same target
-  within the dedupe window; the second attempt returns `409 Conflict` with the
-  existing `reportId`.
-- Reports are written in a single transaction. On dependency failure the
-  transaction is rolled back and no partial report is persisted.
+  the original `200 OK` response without creating a second report.
+- Reports are append-only and never mutate the target profile, so there is no
+  rollback path that could affect the `username → publicKey` mapping.
+- On dependency failure the report is not persisted and the caller may safely
+  retry with the same idempotency key.
 
 #### Observability
 
-- Structured log fields: `event=profile.report`, `reportId`, `username`,
-  `category`, `reporterId` (hashed), `idempotencyKey`, `outcome`, `latencyMs`.
-  Reporter identity and free-text details are never logged in raw form.
-- Metrics: `profile_report_total{category,outcome}`,
-  `profile_report_latency_ms`, `profile_report_dedupe_total{hit|miss}`.
+- Structured log fields: `event=username.report`, `username`, `category`,
+  `reporterId` (hashed), `idempotencyKey`, `outcome`, `latencyMs`. No secrets
+  or raw reporter identifiers are logged.
+- Metrics: `username_report_total{outcome}`, `username_report_latency_ms`,
+  `username_report_dedupe_total{hit|miss}`.
 
 ---
 
-### 6. List Abuse Reports (Moderation)
+### 6. Get Verified Profile Metadata
 
-**GET** `/username/reports`
+**GET** `/username/:username/metadata`
 
-List abuse reports for moderator review. Requires a moderator or admin role.
+Return the verified profile metadata for a public profile. Metadata is
+attached to the `username → publicKey` mapping and is served from a cache
+that is invalidated on every write. Self-custody is preserved: metadata is
+advisory display data and never influences payment routing.
 
 #### Parameters
 
 | Name | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
-| `status` | string | ❌ No | `open` | Filter: `open`, `resolved`, `dismissed` |
-| `limit` | number | ❌ No | 20 | Max results (1-100) |
-| `cursor` | string | ❌ No | - | Opaque pagination cursor |
+| `username` | string | ✅ Yes | - | Profile username (normalized, lowercase) |
 
 #### Example Request
 
 ```bash
-curl "http://localhost:3000/username/reports?status=open&limit=20" \
-  -H "Authorization: Bearer <moderator-token>"
+curl "http://localhost:3000/username/alice/metadata"
 ```
 
 #### Example Response
 
 ```json
 {
-  "reports": [
-    {
-      "reportId": "c1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b",
-      "username": "alice",
-      "category": "impersonation",
-      "status": "open",
-      "createdAt": "2025-03-27T12:10:00Z"
-    }
+  "username": "alice",
+  "publicKey": "GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR",
+  "verified": true,
+  "verifiedAt": "2025-03-20T09:00:00Z",
+  "displayName": "Alice",
+  "avatarUrl": "https://cdn.quickex.example/avatars/alice.png",
+  "bio": "Stellar payments educator.",
+  "links": [
+    { "label": "website", "url": "https://alice.example" }
   ],
-  "nextCursor": null
+  "version": 4,
+  "updatedAt": "2025-03-27T12:00:00Z"
 }
 ```
 
 #### Status Codes
 
-- `200 OK` - Success
-- `400 Bad Request` - Invalid `status` filter or pagination cursor
-- `401 Unauthorized` - Missing or invalid authentication
-- `403 Forbidden` - Authenticated principal lacks moderator/admin role
-- `503 Service Unavailable` - Dependency (DB) unavailable; safe to retry
+- `200 OK` - Metadata returned (cache hit or miss)
+- `400 Bad Request` - Malformed username
+- `404 Not Found` - Username does not exist
+- `503 Service Unavailable` - Metadata store unavailable and no cached copy is servable
+
+#### Cache Semantics
+
+- Metadata reads are served from a per-username cache keyed by
+  `profile:metadata:<username>`.
+- Every successful metadata write bumps `version` and invalidates the cache
+  entry for that username before returning, so a subsequent read observes the
+  new value (read-after-write consistency).
+- Cache entries carry a short TTL as a safety net; a stale entry is never
+  served after a successful write because invalidation is synchronous.
+- On cache-store failure the read falls back to the source of truth; the
+  response is still correct, only slower.
 
 ---
 
-### 7. Resolve or Dismiss an Abuse Report (Moderation)
+### 7. Update Verified Profile Metadata
 
-**POST** `/username/reports/{reportId}/resolve`
+**PUT** `/username/:username/metadata`
 
-Apply a moderation decision to an open report. Requires a moderator or admin
-role. State transitions are one-way: `open → resolved` or `open → dismissed`.
-A report that is already `resolved` or `dismissed` cannot be transitioned
-again.
+Create or replace the verified profile metadata for a username. Only the
+wallet that owns the `username → publicKey` mapping may write metadata.
+Writes are idempotent, validated, and invalidate the metadata cache.
 
 #### Request Body
 
 ```json
 {
-  "decision": "resolved",
-  "note": "Confirmed impersonation; profile hidden.",
-  "idempotencyKey": "7e6d5c4b-3a2f-4e1d-9c8b-7a6f5e4d3c2b"
+  "publicKey": "GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR",
+  "displayName": "Alice",
+  "avatarUrl": "https://cdn.quickex.example/avatars/alice.png",
+  "bio": "Stellar payments educator.",
+  "links": [
+    { "label": "website", "url": "https://alice.example" }
+  ],
+  "expectedVersion": 3,
+  "idempotencyKey": "7d2e3f4a-5b6c-7d8e-9f0a-1b2c3d4e5f60"
 }
 ```
 
@@ -422,20 +439,27 @@ again.
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `decision` | string | ✅ Yes | One of `resolved`, `dismissed` |
-| `note` | string | ❌ No | Moderator note (max 2000 chars) |
+| `publicKey` | string | ✅ Yes | Owner's Stellar public key (must match current owner) |
+| `displayName` | string | ❌ No | Display name (max 64 chars) |
+| `avatarUrl` | string | ❌ No | HTTPS URL to avatar image |
+| `bio` | string | ❌ No | Short bio (max 280 chars) |
+| `links` | array | ❌ No | Up to 5 `{ label, url }` entries; URLs must be HTTPS |
+| `expectedVersion` | number | ❌ No | Optimistic-concurrency guard; `409` if it does not match current `version` |
 | `idempotencyKey` | string (UUID) | ✅ Yes | Client-generated key; replays return the original result |
 
 #### Example Request
 
 ```bash
-curl -X POST "http://localhost:3000/username/reports/c1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b/resolve" \
-  -H "Authorization: Bearer <moderator-token>" \
+curl -X PUT "http://localhost:3000/username/alice/metadata" \
   -H "Content-Type: application/json" \
   -d '{
-    "decision": "resolved",
-    "note": "Confirmed impersonation; profile hidden.",
-    "idempotencyKey": "7e6d5c4b-3a2f-4e1d-9c8b-7a6f5e4d3c2b"
+    "publicKey": "GBXGQ55JMQ4L2B6E7S8Y9Z0A1B2C3D4E5F6G7H8I7YWR",
+    "displayName": "Alice",
+    "avatarUrl": "https://cdn.quickex.example/avatars/alice.png",
+    "bio": "Stellar payments educator.",
+    "links": [{ "label": "website", "url": "https://alice.example" }],
+    "expectedVersion": 3,
+    "idempotencyKey": "7d2e3f4a-5b6c-7d8e-9f0a-1b2c3d4e5f60"
   }'
 ```
 
@@ -444,67 +468,80 @@ curl -X POST "http://localhost:3000/username/reports/c1a2b3c4-d5e6-4f70-8a9b-0c1
 ```json
 {
   "ok": true,
-  "reportId": "c1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b",
-  "status": "resolved",
-  "resolvedAt": "2025-03-27T12:20:00Z"
+  "username": "alice",
+  "version": 4,
+  "updatedAt": "2025-03-27T12:00:00Z",
+  "cacheInvalidated": true
 }
 ```
 
 #### Status Codes
 
-- `200 OK` - Decision applied (or idempotent replay of a prior success)
-- `400 Bad Request` - Malformed payload, unknown `decision`, or missing idempotency key
-- `401 Unauthorized` - Missing or invalid authentication
-- `403 Forbidden` - Authenticated principal lacks moderator/admin role
-- `404 Not Found` - `reportId` does not exist
-- `409 Conflict` - Report is not in `open` state (already resolved or dismissed)
-- `503 Service Unavailable` - Dependency (DB) unavailable; safe to retry with the same idempotency key
+- `200 OK` - Metadata written (or idempotent replay of a prior success)
+- `400 Bad Request` - Malformed username, invalid field, or missing idempotency key
+- `401 Unauthorized` - Missing or invalid signature over the metadata payload
+- `403 Forbidden` - `publicKey` does not own `username`
+- `404 Not Found` - `username` does not exist
+- `409 Conflict` - `expectedVersion` mismatch (concurrent write)
+- `413 Payload Too Large` - Metadata exceeds size limits
+- `503 Service Unavailable` - Dependency (DB/cache) unavailable; safe to retry with the same idempotency key
 
-#### State Transitions
+#### Authorization
 
-- `open → resolved` (decision `resolved`)
-- `open → dismissed` (decision `dismissed`)
-- Any other transition returns `409 Conflict`; terminal states are immutable.
+- The caller must prove ownership of `publicKey` by signing the canonical
+  metadata payload. The signature is verified server-side before any write.
+- Metadata writes never change the `username → publicKey` mapping, so
+  self-custody and the financial invariants are preserved.
 
 #### Idempotency & Rollback
 
-- Every decision requires an `idempotencyKey`. Replaying the same key returns
-  the original `200 OK` response without re-applying the transition.
-- The status update and the moderation audit record are written in a single
+- Every write requires an `idempotencyKey`. Replaying the same key returns
+  the original `200 OK` response without re-applying the change.
+- The metadata row and its `version` bump are written in a single
   transaction. On dependency failure the transaction is rolled back and the
-  report remains `open`.
+  previous metadata remains active.
+- Cache invalidation runs after the transaction commits. If invalidation
+  fails, the write still succeeds and the cache entry is left to expire via
+  its TTL; the response reports `cacheInvalidated: false` so callers can
+  observe the degraded mode.
 
 #### Observability
 
-- Structured log fields: `event=profile.report.resolve`, `reportId`,
-  `decision`, `moderatorId` (hashed), `idempotencyKey`, `outcome`, `latencyMs`.
-- Metrics: `profile_report_resolve_total{decision,outcome}`,
-  `profile_report_resolve_latency_ms`.
+- Structured log fields: `event=username.metadata.write`, `username`,
+  `publicKey` (hashed), `version`, `idempotencyKey`, `outcome`,
+  `cacheInvalidated`, `latencyMs`. No secrets or raw keys are logged.
+- Metrics: `username_metadata_write_total{outcome}`,
+  `username_metadata_write_latency_ms`,
+  `username_metadata_cache_invalidation_total{hit|miss|error}`.
 
 ---
 
-## Field Descriptions
+### 8. Feature Gate
 
-### PublicProfile Object
+Verified profile metadata is gated behind the `PROFILE_METADATA_ENABLED`
+configuration flag. When the flag is off (the default on mainnet until the
+rollout issue is closed), the metadata endpoints return `404 Not Found` and
+no metadata is read or written. Testnet enables the flag by default.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | UUID | Unique identifier |
-| `username` | string | Normalized username (lowercase) |
-| `publicKey` | string | Stellar public key (G...) |
-| `similarityScore` | number | Search relevance (0-100), only in search results |
-| `transactionVolume` | number | Total USD volume, only in trending results |
-| `transactionCount` | number | Number of transactions, only in trending results |
-| `lastActiveAt` | string (ISO 8601) | Last activity timestamp |
-| `createdAt` | string (ISO 8601) | Profile creation timestamp |
+---
 
-### AbuseReport Object
+## Configuration
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `reportId` | UUID | Unique report identifier |
-| `username` | string | Reported profile username |
-| `category` | string | `spam`, `impersonation`, `fraud`, `harassment`, or `other` |
-| `status` | string | `open`, `resolved`, or `dismissed` |
-| `createdAt` | string (ISO 8601) | Report creation timestamp |
-| `resolvedAt` | string (ISO 8601) | Decision timestamp, present once terminal |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROFILE_METADATA_ENABLED` | `false` (mainnet), `true` (testnet) | Feature gate for verified profile metadata |
+| `PROFILE_METADATA_CACHE_TTL_SECONDS` | `300` | Safety-net TTL for metadata cache entries |
+| `PROFILE_METADATA_MAX_LINKS` | `5` | Maximum number of links per profile |
+
+---
+
+## Operational Procedure
+
+1. Enable `PROFILE_METADATA_ENABLED` on testnet and verify the happy path
+   with the `PUT`/`GET` examples above.
+2. Confirm cache invalidation by writing metadata and immediately reading it
+   back; the read must reflect the new `version`.
+3. Roll out to mainnet by flipping the flag; no migration is required because
+   metadata is stored alongside the existing username mapping.
+4. To roll back, disable the flag; metadata endpoints return `404` and the
+   existing `username → publicKey` mapping is unaffected.
