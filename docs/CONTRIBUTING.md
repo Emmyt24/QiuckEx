@@ -82,13 +82,28 @@ cargo fmt
 
 ---
 
+## Architecture & Governance Guides
+
+Before starting work, consult these reference documents:
+
+- **[CAPABILITY-MAP.md](./CAPABILITY-MAP.md)**: Status of all features (Live vs Partial vs Mocked vs Experimental).
+- **[CONTRIBUTOR-CAPABILITY-SELECTION-GUIDE.md](./CONTRIBUTOR-CAPABILITY-SELECTION-GUIDE.md)**: Decision tree for choosing issues and criteria for advancing capabilities to Live.
+- **[BACKEND-CLIENT-CONTRACT-MAP.md](./BACKEND-CLIENT-CONTRACT-MAP.md)**: Client-to-backend endpoint routing, payload definitions, and known mismatches.
+- **[PUBLIC-API-REFERENCE.md](./PUBLIC-API-REFERENCE.md)**: Canonical reference of all public and authenticated API routes.
+- **[CUSTODY-TRUST-THREAT-MODEL.md](./CUSTODY-TRUST-THREAT-MODEL.md)**: Non-custodial security model, key boundaries, and threat mitigations.
+- **[INVARIANTS.md](./INVARIANTS.md)**: Core financial and state-machine invariants that must never be violated.
+- **[MAINNET-PROMOTION-AND-GOVERNANCE.md](./MAINNET-PROMOTION-AND-GOVERNANCE.md)**: Production promotion criteria, multisig governance, and emergency runbooks.
+
+---
+
 ## Before Opening a Pull Request
 
 Verify that:
 
 - The project builds successfully.
 - Database migrations are up to date.
-- Rust tests pass.
-- TypeScript tests pass.
-- Linting passes.
-- Formatting passes.
+- Rust tests pass (`cargo test`).
+- TypeScript tests pass (`npm test`).
+- Linting and secret scanning pass (`./scripts/secret-scan.sh --verify`).
+- Relevant capability maps and contract maps are updated in the same PR.
+- Record assumptions about network, custody, and backward compatibility in the PR description.
