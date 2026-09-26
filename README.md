@@ -187,6 +187,14 @@ The root `test` script delegates to Turborepo, so `pnpm <task>` is the canonical
    pnpm secret-scan:verify
    ```
 
+4. Validate a release candidate with one command — the same gate CI runs:
+   ```bash
+   pnpm rc:validate          # full gate
+   pnpm rc:validate:quick    # fast subset while iterating
+   pnpm rc:stages            # list the stages
+   ```
+   See [docs/RELEASE-CANDIDATE-VALIDATION.md](docs/RELEASE-CANDIDATE-VALIDATION.md).
+
 ### Deployment
 Deployment is automated for most components, but requires platform-specific configuration:
 
@@ -207,6 +215,8 @@ Deployment is automated for most components, but requires platform-specific conf
    - The contract is **not deployed to mainnet**; every `mainnet.*` feature flag defaults to disabled. See [docs/CAPABILITY-MAP.md](docs/CAPABILITY-MAP.md) and the checklist in [RELEASE_READINESS_CHECKLIST.md](RELEASE_READINESS_CHECKLIST.md).
 
 Before promoting anything to production, work through [RELEASE_READINESS_CHECKLIST.md](RELEASE_READINESS_CHECKLIST.md) and follow the promotion procedure in [RELEASE_PROMOTION_FLOW.md](RELEASE_PROMOTION_FLOW.md).
+
+Automated release-gate checks live in [`scripts/rc-validate.sh`](scripts/rc-validate.sh) — run it before promoting, and see [docs/RELEASE-CANDIDATE-VALIDATION.md](docs/RELEASE-CANDIDATE-VALIDATION.md) for the stage list and exit-code contract. Promotion itself follows [RELEASE_PROMOTION_FLOW.md](RELEASE_PROMOTION_FLOW.md).
 
 ## Usage
 1. **Claim Username**: Connect your wallet in the app, select a name, and confirm the on-chain transaction.
