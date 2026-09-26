@@ -78,6 +78,10 @@ NestJS app, ~38 modules wired in `src/app.module.ts`. Supabase (40 migrations) a
 | Canonical API reference & OpenAPI | `src/docs`, `docs` | **Live** | Executable routes serve Swagger UI at `/docs`, spec export at `GET /docs/json` and `POST /docs/json`. Canonical reference published in [PUBLIC-API-REFERENCE.md](./PUBLIC-API-REFERENCE.md). |
 | Session bootstrap (`GET /session/bootstrap`) | — (no module) | **Partial** | Mobile client is wired; backend route does not exist (mismatch #2). |
 | Feedback intake (`POST /feedback`) | — (no module) | **Partial** | Mobile client is wired with export fallback; backend route does not exist (mismatch #3). |
+| Financial authorization mutation testing | `src/auth`, `src/contracts`, `src/transactions` | **Live** | Mutation verification harness (`scripts/run-mutation-tests.js` & `stryker.config.json`) testing INV-01, INV-02, INV-07, and INV-08 authorization invariants. |
+| Database migration forward & rollback verification | `supabase/migrations`, `scripts/verify-migrations.js` | **Live** | Automated CI verification testing monotonic sequencing, Phase 1 forward, Phase 2 reverse-order rollback, and Phase 3 forward re-apply idempotency. |
+| Horizon performance regression testing | `src/transactions`, `src/payments` | **Live** | Benchmarks cold vs warm cache p95, 100-request concurrency throughput, pagination scaling, degraded-mode 429 fail-fast, and memory leak checks. |
+| Cross-package TypeScript strictness & generated-type checks | `scripts/check-generated-types.js` | **Live** | Cross-package strict compilation with manifest schema validation and contract type alignment. |
 
 ## Mobile (`app/mobile`)
 

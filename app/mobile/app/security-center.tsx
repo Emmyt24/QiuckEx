@@ -1,5 +1,5 @@
 import { Link } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -134,8 +134,13 @@ export default function SecurityCenterScreen() {
   const [securityItems, setSecurityItems] = useState<SecurityCheckItem[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [sessions, setSessions] = useState<ActiveSession[]>(MOCK_SESSIONS);
+  const [walletSession, setWalletSession] = useState<unknown>(null);
+  const [sessionExplanation, setSessionExplanation] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-      const items: SecurityCheckItem[] = [];
+  const loadSecurityStatus = useCallback(async () => {
+    const items: SecurityCheckItem[] = [];
 
       if (isBiometricAvailable) {
         if (settings.biometricLockEnabled) {
@@ -219,6 +224,10 @@ export default function SecurityCenterScreen() {
       setLoading(false);
       setRefreshing(false);
   }, [isBiometricAvailable, hasPinConfigured, settings]);
+
+  useEffect(() => {
+    void loadSecurityStatus();
+  }, [loadSecurityStatus]);
 
   const handleRevokeSession = (sessionId: string) => {
     Alert.alert(
