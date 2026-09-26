@@ -5,6 +5,10 @@ This document is the single place to check **what is actually built versus scaff
 Companion docs:
 
 - [BACKEND-CLIENT-CONTRACT-MAP.md](./BACKEND-CLIENT-CONTRACT-MAP.md) — endpoint-level wiring between clients and backend (mismatch numbers referenced below, e.g. "mismatch #1", come from that doc).
+- [PUBLIC-API-REFERENCE.md](./PUBLIC-API-REFERENCE.md) — canonical public reference of all executable API route definitions.
+- [CUSTODY-TRUST-THREAT-MODEL.md](./CUSTODY-TRUST-THREAT-MODEL.md) — security architecture, custody boundaries, and threat mitigations.
+- [CONTRIBUTOR-CAPABILITY-SELECTION-GUIDE.md](./CONTRIBUTOR-CAPABILITY-SELECTION-GUIDE.md) — guide for selecting, implementing, and promoting capabilities.
+- [MAINNET-PROMOTION-AND-GOVERNANCE.md](./MAINNET-PROMOTION-AND-GOVERNANCE.md) — mainnet launch evidence, multisig protocol, and rollback criteria.
 - [MVP-CONTRACT-SCOPE.md](./MVP-CONTRACT-SCOPE.md) — what is deliberately on-chain vs deferred.
 - [RUNTIME-CONFIG-MATRIX.md](./RUNTIME-CONFIG-MATRIX.md) — environment/config drift that affects whether "Live" flows actually work in your environment.
 
@@ -71,8 +75,13 @@ NestJS app, ~38 modules wired in `src/app.module.ts`. Supabase (40 migrations) a
 | Audit logs | `src/audit` | **Live** | Controller is **unguarded** (mismatch #7). |
 | Ingestion (Soroban events) | `src/ingestion` | **Live** | Versioned event schemas with legacy-topic fallback. |
 | Refunds, job queue, health, metrics | `src/refunds`, `src/job-queue`, `src/health`, `src/metrics` | **Live** | Mainnet refund initiation gated by `mainnet.refunds` flag (disabled by default). |
-| Session bootstrap (`GET /session/bootstrap`) | `src/session` | **Live** | Backend route delivers runtime configuration, feature flags, unread count, and account context. |
+| Canonical API reference & OpenAPI | `src/docs`, `docs` | **Live** | Executable routes serve Swagger UI at `/docs`, spec export at `GET /docs/json` and `POST /docs/json`. Canonical reference published in [PUBLIC-API-REFERENCE.md](./PUBLIC-API-REFERENCE.md). |
+| Session bootstrap (`GET /session/bootstrap`) | — (no module) | **Partial** | Mobile client is wired; backend route does not exist (mismatch #2). |
 | Feedback intake (`POST /feedback`) | — (no module) | **Partial** | Mobile client is wired with export fallback; backend route does not exist (mismatch #3). |
+| Financial authorization mutation testing | `src/auth`, `src/contracts`, `src/transactions` | **Live** | Mutation verification harness (`scripts/run-mutation-tests.js` & `stryker.config.json`) testing INV-01, INV-02, INV-07, and INV-08 authorization invariants. |
+| Database migration forward & rollback verification | `supabase/migrations`, `scripts/verify-migrations.js` | **Live** | Automated CI verification testing monotonic sequencing, Phase 1 forward, Phase 2 reverse-order rollback, and Phase 3 forward re-apply idempotency. |
+| Horizon performance regression testing | `src/transactions`, `src/payments` | **Live** | Benchmarks cold vs warm cache p95, 100-request concurrency throughput, pagination scaling, degraded-mode 429 fail-fast, and memory leak checks. |
+| Cross-package TypeScript strictness & generated-type checks | `scripts/check-generated-types.js` | **Live** | Cross-package strict compilation with manifest schema validation and contract type alignment. |
 
 ## Mobile (`app/mobile`)
 
@@ -87,11 +96,21 @@ Expo/React Native app, 25 screens in `app/mobile/app`. ⚠️ All "Live" rows ar
 | Escrow confirmation (contract registry sync) | `app/payment-confirmation.tsx`, `services/contract-registry.ts` | **Partial** | **Broken today**: calls `/api/contracts/registry` but the backend serves `/contracts/registry` — every sync 404s (mismatch #1, highest-value small fix). |
 | Session bootstrap | `services/session-bootstrap.ts`, `services/wallet-session.ts` | **Live** | Authenticated Bearer bootstrap, resilient degraded-mode fallback, and full session restoration. |
 | In-app feedback | `services/feedback.ts`, `app/feedback.tsx` | **Partial** | No backend route; every submit silently degrades to the export path (mismatch #3). |
-| Offline action queue | `services/offline-queue.ts` | **Live** | Hardened queue with durable typed action handlers, dependency ordering (`dependsOn`), idempotency deduplication, and dead-letter handling. |
+| Offline action queue | `services/offline-queue.ts` | **Live** | Queue machinery backed by AsyncStorage; full scenario test coverage in `__tests__/offline-background-restart.test.ts`. |
+| Offline, background & restart resilience | `services/offline-queue.ts`, `services/background-sync.ts`, `services/wallet-session.ts` | **Live** | End-to-end scenario test coverage for offline queuing, background sync constraints, and app-restart recovery. |
 | Contacts, security center, wallet session, local data | `services/contacts.ts`, `services/security*.ts`, `services/wallet-session.ts` | **Live** | Deliberately device-local (AsyncStorage/SecureStore); no backend sync by design. |
 | Push notification token lifecycle | `services/push-notifications.ts` | **Live** | Registration, rotation, and revocation with offline fallback. |
 | Share receipt | `src/screens/ReceiptScreen.tsx` | **Live** | Builds a *web* share URL; does not consume the backend `GET /v1/receipts/*` API (which has no client consumer yet). |
 | Debug screens (deep-link, notification, offline-queue inspector, QA checklist) | `app/*-debug.tsx`, `app/qa-smoke-checklist.tsx` | **Experimental** | Developer tooling; hidden in production+mainnet builds. |
+
+## CI & Developer Tooling
+
+| Capability | Owning file / module | Status | Notes |
+|---|---|---|---|
+| DevContainer reproducible toolchain | `.devcontainer/Dockerfile`, `scripts/verify-devcontainer.sh` | **Live** | Provisions Node 20 LTS, pnpm, Rust toolchain with wasm32 Soroban target, and Stellar CLI cleanly. |
+| Affected-package CI matrix execution | `.github/workflows/ci.yml`, `turbo.json` | **Live** | Parallel matrix execution with Turbo caching (`.turbo/cache`) scoped to affected packages against base ref. |
+| Release-quality scorecard generator | `scripts/generate-release-scorecard.mjs`, `.github/workflows/ci.yml` | **Live** | Generates weighted quality score (A+/A/B/C/F), emits `release-scorecard.md`/`json`, and attaches to CI summary and build artifacts. |
+
 
 ## Contract (`app/contract`)
 
@@ -137,6 +156,8 @@ A separate env-var rollback guard exists at `app/backend/flags.js` (`FEATURE_<NA
 
 ## How to use this map
 
-- **Picking an issue?** "Mocked" rows paired with an existing Live backend module (e.g., discovery page vs the real `username/*` endpoints) are the highest-leverage wiring tasks.
+- **Picking an issue?** "Mocked" rows paired with an existing Live backend module (e.g., discovery page vs the real `username/*` endpoints) are the highest-leverage wiring tasks. See [CONTRIBUTOR-CAPABILITY-SELECTION-GUIDE.md](./CONTRIBUTOR-CAPABILITY-SELECTION-GUIDE.md) for detailed selection guidance.
 - **Building on a flow?** Anything not marked **Live** needs the notes column read first; **Partial** rows tell you exactly which segment is missing.
+- **Promoting a capability to Live?** Follow the 9-point checklist in [CONTRIBUTOR-CAPABILITY-SELECTION-GUIDE.md](./CONTRIBUTOR-CAPABILITY-SELECTION-GUIDE.md).
+- **Preparing for Mainnet?** Verify the five promotion gateways and multisig approvals defined in [MAINNET-PROMOTION-AND-GOVERNANCE.md](./MAINNET-PROMOTION-AND-GOVERNANCE.md).
 - **Changing a flow's status?** Update the relevant row **in the same PR**, using only the four status terms defined above. If the change also touches endpoint wiring, update [BACKEND-CLIENT-CONTRACT-MAP.md](./BACKEND-CLIENT-CONTRACT-MAP.md) too.

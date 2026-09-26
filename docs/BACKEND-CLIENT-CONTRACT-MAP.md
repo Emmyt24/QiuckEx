@@ -2,7 +2,7 @@
 
 This document maps the backend HTTP endpoints actually consumed by the **frontend** (`app/frontend`) and **mobile** (`app/mobile`) apps to their owning backend modules (`app/backend/src/*`), so route mismatches and payload drift are caught before contributor work diverges.
 
-Scope: REST contracts between clients and the NestJS backend. On-chain/Soroban event schemas are covered separately in `app/backend/doc/EVENTS.md` and `app/contract/docs/events-schema.md`.
+Scope: REST contracts between clients and the NestJS backend. For the complete reference of all route definitions, request/response models, and error envelopes, see [PUBLIC-API-REFERENCE.md](./PUBLIC-API-REFERENCE.md). On-chain/Soroban event schemas are covered separately in `app/backend/doc/EVENTS.md` and `app/contract/docs/events-schema.md`.
 
 > **Important:** the backend registers **no global route prefix** (`app/backend/src/main.ts` never calls `setGlobalPrefix`). Controller prefixes are the full public paths. Anything a client prepends (like `/api`) is a bug — see [Known mismatches](#known-mismatches--payload-drift).
 
@@ -17,7 +17,7 @@ Scope: REST contracts between clients and the NestJS backend. On-chain/Soroban e
 
 Auth conventions:
 
-- **Public** (rate-throttled, no key): `health`/`ready`/`status`, `username/*`, `payment-links/status`, `v1/receipts/*`
+- **Public** (rate-throttled, no key): `docs` (`/docs`, `/docs/json`, `/docs/openapi.json`), `health`/`ready`/`status`, `username/*`, `payment-links/status`, `v1/receipts/*`
 - **Optional `X-API-Key`** (higher rate limits via `ApiKeyGuard`): `links/metadata`, `transactions`, `stellar/*`, `analytics/*`, `contracts/registry` reads
 - **Admin-scoped API key** (`@RequireScopes('admin')`): all `admin/*` controllers, contract registry writes (`publish`, `PUT deployments/:name`, `rollback`)
 - Errors follow the global envelope `{ code, message, fields? }` (global `ValidationPipe` in `main.ts`, e.g. `VALIDATION_ERROR`)
