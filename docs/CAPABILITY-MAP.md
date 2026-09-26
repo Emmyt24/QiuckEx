@@ -11,10 +11,12 @@ Companion docs:
 - [MAINNET-PROMOTION-AND-GOVERNANCE.md](./MAINNET-PROMOTION-AND-GOVERNANCE.md) — mainnet launch evidence, multisig protocol, and rollback criteria.
 - [MVP-CONTRACT-SCOPE.md](./MVP-CONTRACT-SCOPE.md) — what is deliberately on-chain vs deferred.
 - [RUNTIME-CONFIG-MATRIX.md](./RUNTIME-CONFIG-MATRIX.md) — environment/config drift that affects whether "Live" flows actually work in your environment.
+- [adr/README.md](./adr/README.md) — architecture decision records: the non-obvious decisions behind this map (self-custody, testnet-first, Supabase as system of record, this status vocabulary) and when a new one is required.
+- [../CONTRIBUTING.md](../CONTRIBUTING.md) — issue templates, the label vocabulary, and the ADR workflow.
 
 ## Status legend
 
-Exactly four status terms are used in this document. If you update a row, use only these:
+Exactly four status terms are used in this document. If you update a row, use only these. The vocabulary is itself a recorded decision — see [ADR 0004](./adr/0004-canonical-status-vocabulary.md).
 
 | Status | Meaning |
 |---|---|
