@@ -64,6 +64,7 @@ import { DashboardFeedModule } from "./dashboard-feed/dashboard-feed.module";
 import { ContactsModule } from "./contacts/contacts.module";
 import { TeamsModule } from "./teams/teams.module";
 import { BulkOperationsModule } from "./bulk-operations/bulk-operations.module";
+import { SessionModule } from "./session/session.module";
 
 type AppImport =
 | Type<unknown>
@@ -125,6 +126,7 @@ OperationsModule,
     TransactionTimelineModule,
     DashboardFeedModule,
     TeamsModule,
+    SessionModule,
     ];
 
     try {
