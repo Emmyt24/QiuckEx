@@ -39,19 +39,11 @@ Zero-amount payments follow the same state machine but MUST NOT resultin any tok
 INV-10: Fee Ceiling
 
 Protocol fees collected per payment MUST NOT exceed the configuredmaximum fee percentage of the payment amount.
-Transaction Submission Invariants
-INV-11: Submission Idempotency
 
-A transaction submission MUST be idempotent per (payment, operation, nonce).Re-submitting the same logical operation with the same nonce MUST NOTproduce a second on-chain effect; the orchestrator MUST return the existingresult (or a stable duplicate error) rather than broadcasting again.
-INV-12: Confirmation Before Settlement
+---
 
-A payment MUST NOT be treated as settled (Funded, Fulfilled, Refunded,DisputeResolved) until its submission is confirmed on the supported network.Until confirmation, the payment remains in its pre-submission state and anyoptimistic UI state MUST be reconcilable from the confirmed ledger.
-INV-13: Bounded Retry
+## Architectural Enforcement References
 
-Retries MUST be bounded and MUST only apply to retryable failures (e.g.transient network or timeout errors). Non-retryable failures (validation,authorization, insufficient balance, expired, malformed) MUST NOT be retriedand MUST surface a stable error. Retries MUST reuse the same signed transactionor nonce so that a retry cannot double-spend.
-INV-14: Rollback on Terminal Failure
-
-When a submission reaches a terminal failure after exhausting retries, thepayment MUST be rolled back to its last confirmed state and any reservednonce or optimistic balance change MUST be released. No partial settlementmay persist.
-INV-15: Submission Observability
-
-Every submission attempt MUST emit structured logs and metrics coveringoutcome (success/failure), latency, retry count, and a stable error code.Metrics and logs MUST NOT expose secrets, private keys, or unnecessarypersonal data.
+- [CUSTODY-TRUST-THREAT-MODEL.md](./CUSTODY-TRUST-THREAT-MODEL.md): Full threat modeling, trust assumptions, and cryptographic custody boundary enforcement for INV-01 through INV-10.
+- [MAINNET-PROMOTION-AND-GOVERNANCE.md](./MAINNET-PROMOTION-AND-GOVERNANCE.md): Invariant verification suite requirements and multisig governance rules prior to Mainnet launch.
+- [CAPABILITY-MAP.md](./CAPABILITY-MAP.md): Current implementation status of on-chain and off-chain invariant enforcement.
