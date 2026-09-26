@@ -87,10 +87,20 @@ Expo/React Native app, 25 screens in `app/mobile/app`. ⚠️ All "Live" rows ar
 | Escrow confirmation (contract registry sync) | `app/payment-confirmation.tsx`, `services/contract-registry.ts` | **Partial** | **Broken today**: calls `/api/contracts/registry` but the backend serves `/contracts/registry` — every sync 404s (mismatch #1, highest-value small fix). |
 | Session bootstrap | `services/session-bootstrap.ts` | **Partial** | No backend route exists (mismatch #2). |
 | In-app feedback | `services/feedback.ts`, `app/feedback.tsx` | **Partial** | No backend route; every submit silently degrades to the export path (mismatch #3). |
-| Offline action queue | `services/offline-queue.ts` | **Partial** | Queue machinery is real; the built-in `mock-success`/`mock-failure`/`mock-payment` handlers are dev-only **Mocked** actions. |
+| Offline action queue | `services/offline-queue.ts` | **Live** | Queue machinery backed by AsyncStorage; full scenario test coverage in `__tests__/offline-background-restart.test.ts`. |
+| Offline, background & restart resilience | `services/offline-queue.ts`, `services/background-sync.ts`, `services/wallet-session.ts` | **Live** | End-to-end scenario test coverage for offline queuing, background sync constraints, and app-restart recovery. |
 | Contacts, security center, wallet session, local data | `services/contacts.ts`, `services/security*.ts`, `services/wallet-session.ts` | **Live** | Deliberately device-local (AsyncStorage/SecureStore); no backend sync by design. |
 | Share receipt | `src/screens/ReceiptScreen.tsx` | **Live** | Builds a *web* share URL; does not consume the backend `GET /v1/receipts/*` API (which has no client consumer yet). |
 | Debug screens (deep-link, notification, offline-queue inspector, QA checklist) | `app/*-debug.tsx`, `app/qa-smoke-checklist.tsx` | **Experimental** | Developer tooling; hidden in production+mainnet builds. |
+
+## CI & Developer Tooling
+
+| Capability | Owning file / module | Status | Notes |
+|---|---|---|---|
+| DevContainer reproducible toolchain | `.devcontainer/Dockerfile`, `scripts/verify-devcontainer.sh` | **Live** | Provisions Node 20 LTS, pnpm, Rust toolchain with wasm32 Soroban target, and Stellar CLI cleanly. |
+| Affected-package CI matrix execution | `.github/workflows/ci.yml`, `turbo.json` | **Live** | Parallel matrix execution with Turbo caching (`.turbo/cache`) scoped to affected packages against base ref. |
+| Release-quality scorecard generator | `scripts/generate-release-scorecard.mjs`, `.github/workflows/ci.yml` | **Live** | Generates weighted quality score (A+/A/B/C/F), emits `release-scorecard.md`/`json`, and attaches to CI summary and build artifacts. |
+
 
 ## Contract (`app/contract`)
 
