@@ -43,7 +43,7 @@ Next.js 15 app. Base URL via `NEXT_PUBLIC_QUICKEX_API_URL` (`src/lib/api.ts`), d
 | Marketplace — user bids & user listings | `src/hooks/marketplaceApi.ts` | **Mocked** | `MOCK_USER_BIDS` / `MOCK_USER_LISTINGS` returned behind fake delays. |
 | Marketplace — real-time bid updates | `src/hooks/useRealtimeUpdates.ts` | **Mocked** | `MockWebSocket` class generates random bids on a timer; no server connection exists. |
 | Marketplace — extend/cleanup contract actions | `src/hooks/mockApi.ts` | **Mocked** | `mockContractCall()` resolves `true` after a timeout. |
-| Discovery page | `src/app/discovery` | **Mocked** | Renders `MOCK_USERS` from `src/lib/mockData.ts`. The backend already serves real `GET /username/search|trending|recently-active|featured` — wiring them up is an open opportunity. |
+| Discovery page | `src/app/discovery` | **Live** | Real `GET /username/search\|trending\|recently-active\|featured` with category filtering, search, pagination, and resilient fallback. |
 | Notification center | `src/app/notifications`, `src/components/NotificationCenterProvider.tsx` | **Partial** | UI is real but state is localStorage-only; not fed by the backend `notifications` module. |
 | Webhook management | `src/app/webhooks` → backend `notifications` | **Live** | Full webhook CRUD/logs/redeliver/signature-verify family. |
 | Developer settings (API keys) | `src/app/settings/developer` → backend `api-keys` | **Live** | Key CRUD, usage, rotate. |
