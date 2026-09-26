@@ -1,65 +1,63 @@
-# Architecture Decision Records
+# Architecture Decision Records (ADRs)
 
-ADRs capture decisions that are **expensive to reverse** — data ownership, settlement
-flow, key custody, network selection, and anything that changes the documented API
-contract in [../BACKEND-CLIENT-CONTRACT-MAP.md](../BACKEND-CLIENT-CONTRACT-MAP.md).
+This directory is the durable record of **irreversible or expensive-to-reverse protocol and custody decisions** in QuickEx. Issue [#309](https://github.com/Viky207/QiuckEx/issues/309) established this process.
 
-An ADR is not a design doc and not a meeting note. It records *one* decision, the
-alternatives that were rejected, and what the decision costs us. If a PR can be
-understood from its description and a code comment, it does not need an ADR. If
-reversing it later would require touching every surface or migrating user data, it
-does.
+An ADR is required (and the governance gate in `scripts/governance/check.mjs` enforces the formatting) whenever a change:
 
-## When to write one
+1. changes **key custody** or signing authority (self-custody is a product invariant),
+2. changes an **on-chain** storage layout, role model, pause/emergency semantic, fee formula, or upgrade path,
+3. makes a **network-level commitment** (mainnet enablement, contract address reuse, WASM hash pinning),
+4. fixes a **wire contract** in a way clients cannot migrate away from cheaply (event topics, error enum values, registry semantics),
+5. establishes a **financial invariant** in [../INVARIANTS.md](../INVARIANTS.md).
 
-Write an ADR in the same PR as the decision when the change:
-
-- introduces or removes a service, datastore, or queue;
-- changes who holds keys or funds;
-- changes the settlement or refund flow;
-- adds, removes, or breaks a public endpoint family;
-- introduces a network other than testnet-first;
-- replaces a **Mocked** or **Partial** path in [../CAPABILITY-MAP.md](../CAPABILITY-MAP.md)
-  with something a user can rely on.
-
-Pure UI changes, bug fixes that restore documented behaviour, and CI changes do not
-need one. Label the PR `needs:design` when you are unsure.
-
-## Format
-
-Files are named `NNNN-kebab-case-title.md` and numbered sequentially. Start from the
-issue template at `.github/ISSUE_TEMPLATE/adr.yml`.
-
-```markdown
-# NNNN. Decision stated as a sentence
-
-- Status: Proposed | Accepted | Superseded by ADR-NNNN | Deprecated
-- Date: YYYY-MM-DD
-- Surfaces: app/backend, app/contract
-
-## Context
-## Decision
-## Alternatives considered
-## Consequences
-```
-
-## Status lifecycle
-
-| Status | Meaning |
-|---|---|
-| `Proposed` | PR is open; not yet binding. |
-| `Accepted` | Merged. Binding — later PRs must follow it or supersede it. |
-| `Superseded by ADR-NNNN` | Replaced. Keep the file for history; link the successor. |
-| `Deprecated` | The decision no longer applies, but nothing replaced it. |
-
-Never edit an Accepted ADR to change what it says. Supersede it with a new file and
-point the old one at the new one, so the reasoning stays readable.
+Cheap-to-reverse implementation choices (a new REST read endpoint, a new flag default, a refactor) do **not** need an ADR — use a normal PR description instead. Err on the side of writing one when you are unsure: an unnecessary ADR costs minutes, a missing one costs a migration.
 
 ## Index
 
-| # | Title | Status | Surfaces |
-|---|---|---|---|
-| [0001](./0001-self-custody-no-intermediary-custody.md) | Keep QuickEx self-custodial; no intermediary holds funds | Accepted | all |
-| [0002](./0002-testnet-first-mainnet-feature-gated.md) | Testnet-first, with mainnet behaviour behind disabled-by-default feature flags | Accepted | all |
-| [0003](./0003-supabase-as-system-of-record.md) | Supabase is the system of record; no additional relational database | Accepted | app/backend |
-| [0004](./0004-canonical-status-vocabulary.md) | Live / Partial / Mocked / Experimental is the only status vocabulary | Accepted | docs |
+| ADR | Title | Status |
+|---|---|---|
+| [ADR-0001](./0001-self-custody-and-no-server-side-key-custody.md) | Self-custody, no server-side key custody | Accepted |
+| [ADR-0002](./0002-monolithic-soroban-escrow-contract.md) | One monolithic Soroban escrow contract | Accepted |
+| [ADR-0003](./0003-testnet-only-contract-writes.md) | Contract writes are testnet-only behind feature flags | Accepted |
+| [ADR-0004](./0004-irreversible-emergency-pause.md) | Emergency pause is irreversible | Accepted |
+| [ADR-0005](./0005-static-fee-model-oracle-deferred.md) | Static fee model; oracle pricing deferred | Accepted |
+| [ADR-0006](./0006-contract-registry-rollback-and-etag.md) | Contract registry rollback and ETag change detection | Accepted |
+
+## File format (enforced)
+
+- Path: `docs/adr/NNNN-kebab-case-title.md` where `NNNN` is the next free zero-padded sequence number.
+- The document **must** start with `# ADR-NNNN: <title>`.
+- The document **must** contain these `##` sections, in this order:
+  `## Status`, `## Context`, `## Decision`, `## Consequences`, `## Reversal Cost`, `## Invariants Affected`, `## References`.
+- `## Status` must be one of: `Proposed`, `Accepted`, `Rejected`, `Deprecated`, `Superseded by ADR-NNNN`.
+- Every ADR must have a row in the [Index](#index) table, and every index row must point at a file that exists.
+- A `Superseded by ADR-NNNN` status must link the replacement file **and** the replacement must be a real ADR in this directory.
+- An ADR body is **immutable once the Status is `Accepted`**, except for the status line and link fixes. Numbering is never reused.
+
+Start from [TEMPLATE.md](./TEMPLATE.md).
+
+## Lifecycle
+
+```
+Proposed ──accept──▶ Accepted ──supersede──▶ Superseded by ADR-NNNN
+    │                     │
+    └──reject──▶ Rejected  └──retire──▶ Deprecated
+```
+
+| Transition | Who | Artifact |
+|---|---|---|
+| Proposed → Accepted | Backend/contract maintainers + one reviewer outside the authoring module | PR that adds the ADR before (or with) the implementing change |
+| Accepted → Superseded | Author of the replacement ADR | New ADR + status line update on the old one in the same PR |
+| Accepted → Deprecated | Maintainers | Status line update + why it no longer applies |
+
+## Review cadence
+
+- Every ADR is re-read in the release readiness review ([../../RELEASE_READINESS_CHECKLIST.md](../../RELEASE_READINESS_CHECKLIST.md)) before a mainnet-affecting release.
+- If the code no longer matches an `Accepted` ADR, the ADR is wrong or the code is a bug: file one of them as a defect and link the other.
+
+## How to verify locally
+
+```bash
+node scripts/governance/check.mjs --only adr
+node --test scripts/governance/__tests__/adr.test.mjs
+```
