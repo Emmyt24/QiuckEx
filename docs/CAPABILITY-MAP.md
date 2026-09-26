@@ -71,6 +71,8 @@ NestJS app, ~38 modules wired in `src/app.module.ts`. Supabase (40 migrations) a
 | Reconciliation | `src/reconciliation` | **Partial** | Horizon-observed counts are placeholders that mirror expected values (`reconciliation.service.ts` L403–404) — it cannot detect real divergence yet. Disabled in local dev. |
 | Fiat ramps (SEP-24 deposit/withdraw, KYC) | `src/fiat-ramps` | **Mocked** | Entire module: hardcoded MoneyGram/Banxa anchor list, fabricated interactive URLs, ack-only KYC/status callbacks. No real anchor or SEP-10 auth integration. |
 | Contract registry | `src/contracts` | **Live** | ETag/304 support; admin-scoped writes/rollback. |
+| Asset listing policy (issuers, verification, delisting) | `src/asset-listing` (policy + engine + store) → filtered into `src/asset-metadata` | **Experimental** | `GET /stellar/verified-assets` is policy-filtered when `assets.listing_policy` is on (flag defaults to dev/test only — **disabled on mainnet**); `GET /asset-listing/policy` publishes tiers/states/triggers; admin decisions at `POST /admin/asset-listing/decisions` (flag `assets.listing_decisions`, idempotency, audit, metrics). Policy of record: [policies/ASSET-LISTING-POLICY.md](policies/ASSET-LISTING-POLICY.md). |
+| Privacy retention, deletion & user rights | `src/privacy` (retention + deletion-requests) | **Experimental** | `GET /privacy/retention-policy` is always available; signed proof-of-control intake (`POST /privacy/deletion-requests/challenge`, `POST /privacy/deletion-requests`, cancel, admin status) and the retention sweep (`POST /admin/privacy/retention/sweep`, dry-run default) are gated by `privacy.deletion_requests` / `privacy.retention_sweep` (dev/test only). Policy of record: [policies/DATA-RETENTION-PRIVACY-POLICY.md](policies/DATA-RETENTION-PRIVACY-POLICY.md). |
 | Feature flags | `src/feature-flags` | **Live** | Supabase-backed with kill-switch semantics; controller is **unguarded** (mismatch #7). |
 | Audit logs | `src/audit` | **Live** | Controller is **unguarded** (mismatch #7). |
 | Ingestion (Soroban events) | `src/ingestion` | **Live** | Versioned event schemas with legacy-topic fallback. |
@@ -127,6 +129,14 @@ Monolithic Soroban contract `QuickexContract` (`contracts/quickex/src/lib.rs`). 
 | M-of-N multisig governance | `.kiro/specs/governance-model-v1` | **Experimental** | Requirements-stage spec only; the deployed contract still uses single-admin + role separation. |
 | SAC asset compatibility matrix | `.kiro/specs/sac-asset-compatibility-matrix` | **Experimental** | Spec formalizes existing `SUPPORTED_ASSETS` validation; not yet implemented as specified. |
 
+## Governance & policy (documentation and enforcement)
+
+| Capability | Owning path | Status | Notes |
+|---|---|---|---|
+| Governance hub + policies | `docs/GOVERNANCE.md`, `docs/policies/*.md` + `docs/policies/data/*.json` | **Live** | Policy of record for listing, retention/privacy and a11y/localization; each has a machine-readable companion that the backend mirrors (unit-tested for equality) |
+| Architecture decision records | `docs/adr/NNNN-*.md` + index | **Live** | Six `Accepted` records cover custody, monolithic contract, mainnet gating, irreversible pause, static fees, registry rollback ([adr/README.md](adr/README.md)) |
+| Governance gate (CI) | `scripts/governance/check.mjs` (+ `__tests__`) | **Live** | Dependency-free, offline; runs in `.github/workflows/ci.yml` and validates docs ↔ JSON ↔ code drift, ADR format/index, and i18n key parity against a ratcheted baseline |
+
 ## Feature-flag gates (Experimental switchboard)
 
 Defaults from `app/backend/src/feature-flags/feature-flags.service.ts`:
@@ -137,6 +147,8 @@ Defaults from `app/backend/src/feature-flags/feature-flags.service.ts`:
 | `mainnet.contract_writes` | **disabled** | All Soroban writes on mainnet |
 | `mainnet.refunds` | **disabled** | Refund initiation on mainnet |
 | `mainnet.dispute_actions` | **disabled** | Escrow dispute actions on mainnet |
+| `assets.listing_policy`, `assets.listing_decisions` | enabled in dev/test, **disabled in production/mainnet** | Asset listing policy enforcement and governed delisting (see [policies/ASSET-LISTING-POLICY.md](policies/ASSET-LISTING-POLICY.md)) |
+| `privacy.deletion_requests`, `privacy.retention_sweep` | enabled in dev/test, **disabled in production/mainnet** | Signed deletion requests and the retention sweep (see [policies/DATA-RETENTION-PRIVACY-POLICY.md](policies/DATA-RETENTION-PRIVACY-POLICY.md)) |
 | `bulk_invoicing_v2`, `bulk_link_generation` | enabled | Generator bulk flows |
 
 A separate env-var rollback guard exists at `app/backend/flags.js` (`FEATURE_<NAME>=true`); it is unrelated to the flags module above.

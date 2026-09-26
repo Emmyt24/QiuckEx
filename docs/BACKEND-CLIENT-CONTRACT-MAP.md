@@ -90,6 +90,15 @@ Useful when picking issues — these are "wire the client" opportunities, not ne
 | `notifications/preferences/*` | `notifications` | — |
 | `admin/refunds`, `admin/rc-validation`, `admin/operations`, `admin/notification-templates`, `admin/support/bundle` | respective modules | operator-facing, admin key required |
 | `transaction-timeline`, `privacy`, `reconciliation`, `telegram`, `metrics`, `developer/testnet`, `api/environment-parity` | respective modules | server-side only today |
+| `GET /asset-listing/policy` | `asset-listing` (asset-listing.controller.ts) | Public (optional key) | → published listing policy: tiers, states, transitions, delisting triggers, evidence max ages, `ASSET_LISTING_*` error codes, feature flags. No personal data |
+| `GET /admin/asset-listing/registry`, `GET /admin/asset-listing/decisions` | `asset-listing` (asset-listing-admin.controller.ts) | `@RequireScopes('admin')` | Registry rows with effective status/served flag/reasons; append-only decision trail |
+| `POST /admin/asset-listing/decisions` | `asset-listing` | `@RequireScopes('admin')` + `assets.listing_decisions` flag + `Idempotency-Key` | `{action,code,issuer?,trigger?,evidenceRef?,evidence?}` → decision record (`idempotent: true` on replay). Stable errors: `ASSET_LISTING_*` |
+| `GET /privacy/retention-policy` | `privacy` (privacy.controller.ts) | Public (optional key) | → published retention schedule: categories, windows, deletion methods, holds, SLA, `DELETION_*`/`RETENTION_*` codes. Always available, even when the flags are off |
+| `POST /privacy/deletion-requests/challenge` | `privacy` | Public (optional key) + `privacy.deletion_requests` flag | `{subject, subjectKind?}` → `{challengeId, challenge, expiresAt, purpose}`; the subject signs `challenge` with their Stellar key (self-custody) |
+| `POST /privacy/deletion-requests` | `privacy` | Public (optional key) + flag + `Idempotency-Key` | `{subject?, challengeId, signature}` → **202** with SLA dates and per-category outcomes. Errors: `DELETION_SIGNATURE_INVALID` (401), `DELETION_CHALLENGE_EXPIRED` (410), `DELETION_REQUEST_DUPLICATE` / `DELETION_IDEMPOTENCY_CONFLICT` (409), `DELETION_INTAKE_DISABLED` (403) |
+| `POST /privacy/deletion-requests/:id/cancel` | `privacy` | Public (optional key) | Signed cancel during the cooling-off window; `DELETION_NOT_CANCELLABLE` / `DELETION_ALREADY_EXECUTED` after it |
+| `GET /privacy/deletion-requests/:id` | `privacy` | `@RequireScopes('admin')` | Status, SLA dates, per-category outcomes/holds, salted subject hash (never the raw subject) |
+| `POST /admin/privacy/retention/sweep` | `privacy` (admin-privacy.controller.ts) | `@RequireScopes('admin')` + `privacy.retention_sweep` flag + `Idempotency-Key` | `{apply?: boolean, batchSize?: number}` → run result (`planned`, `failed`, `completed`). Dry-run unless `apply: true`; `RETENTION_SWEEP_DISABLED` (403) when the flag is off |
 
 ## Planned but not fully wired
 

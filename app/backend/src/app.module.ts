@@ -13,6 +13,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 
 import { AppConfigModule } from "./config";
 import { AssetMetadataModule } from "./asset-metadata/asset-metadata.module";
+import { AssetListingModule } from "./asset-listing/asset-listing.module";
 import { HealthModule } from "./health/health.module";
 import { StellarModule } from "./stellar/stellar.module";
 import { SupabaseModule } from "./supabase/supabase.module";
@@ -90,6 +91,7 @@ delimiter: ".",
 SupabaseModule,
 HealthModule,
 AssetMetadataModule,
+AssetListingModule,
 StellarModule,
 UsernamesModule,
 MetricsModule,
