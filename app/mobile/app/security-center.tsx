@@ -188,8 +188,6 @@ export default function SecurityCenterScreen() {
       }
 
       const session = await getWalletSession();
-      setWalletSession(session);
-      setSessionExplanation(await getSessionExpiryExplanation());
       if (session) {
         const isRestorable = isSessionRestorable(session);
         if (isRestorable) {
@@ -221,8 +219,8 @@ export default function SecurityCenterScreen() {
       }
 
       setSecurityItems(items);
-      setLoading(false);
-      setRefreshing(false);
+    }
+    void loadSecurityItems();
   }, [isBiometricAvailable, hasPinConfigured, settings]);
 
   useEffect(() => {

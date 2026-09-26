@@ -83,7 +83,7 @@ Useful when picking issues — these are "wire the client" opportunities, not ne
 |---|---|---|
 | `GET /username/search`, `/trending`, `/recently-active`, `/featured`, `POST /username/toggle-public` | `usernames` | `app/backend/docs/API-REFERENCE-PUBLIC-PROFILES.md` |
 | `links/recurring/*` | `links` (`recurring-payments.controller.ts`) | `app/backend/docs/RECURRING-PAYMENTS.md` |
-| `GET /v1/receipts/tx/:txHash`, `GET /v1/receipts/address/:address` | `receipts` | — (mobile ReceiptScreen builds a web URL instead) |
+| `GET /v1/receipts/address/:address` | `receipts` | (Address-level listing; single tx verified via `services/receipts.ts`) |
 | `GET /payments/recent` | `payments` | — |
 | `POST /stellar/quote`, `GET /stellar/quote/:quoteId`, `POST /stellar/path-preview/strict-send` | `stellar` | — |
 | `GET /analytics/time-series`, `GET /analytics/assets` | `analytics` | `app/backend/docs/ANALYTICS-API.md` (frontend uses only `report`/`export`) |
